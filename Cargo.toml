@@ -36,8 +36,7 @@ version = "1.45.1"
 features = ["rt"]
 
 [target.'cfg(target_os = "illumos")'.dependencies.tokio-dtrace]
-git = "https://github.com/oxidecomputer/tokio-dtrace"
-rev = "36dc6c66cc171500b0abcbb06016beff93940ac3"
+version = "0.1.0"
 
 [dev-dependencies.tokio]
 version = "1.45.1"

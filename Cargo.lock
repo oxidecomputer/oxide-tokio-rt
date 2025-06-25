@@ -436,7 +436,8 @@ dependencies = [
 [[package]]
 name = "tokio-dtrace"
 version = "0.1.0"
-source = "git+https://github.com/oxidecomputer/tokio-dtrace?rev=36dc6c66cc171500b0abcbb06016beff93940ac3#36dc6c66cc171500b0abcbb06016beff93940ac3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db739893a356b146ee6a4535693ff90274ef305cb2b6cdd40f9576b1b34b01fe"
 dependencies = [
  "thiserror 2.0.12",
  "tokio",
