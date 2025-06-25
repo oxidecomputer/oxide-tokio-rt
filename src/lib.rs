@@ -2,6 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+// Examples in this crate are specifically intended to show replacing the
+// `tokio::main` attribute, so including `fn main` in examples is didactic
+// here.
+#![allow(clippy::needless_doctest_main)]
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
