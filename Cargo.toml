@@ -19,6 +19,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 readme = "README.md"
+description = "Shared Tokio runtime configuration for production Oxide software"
 
 [package.metadata.docs.rs]
 all-features = true
