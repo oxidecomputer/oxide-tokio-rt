@@ -10,7 +10,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use std::future::Future;
-use std::sync::atomic::{AtomicUsize, Ordering};
 pub use tokio::runtime::Builder;
 
 /// Runs the provided `main` future, constructing a multi-threaded Tokio runtime
