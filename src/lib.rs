@@ -64,6 +64,10 @@ pub fn run<T>(main: impl Future<Output = T>) -> T {
 /// This function may be used when additional runtime configuration is required
 /// in addition to the configuration provided by this crate.
 ///
+/// If direct access to the [`Runtime`](tokio::runtime::Runtime) struct is
+/// required, consider using [`build()`], which returns a
+/// [`Runtime`](tokio::runtime::Runtime).
+///
 /// **Note** that the following builder settings are overridden by this
 /// function:
 ///
@@ -118,12 +122,54 @@ pub fn run<T>(main: impl Future<Output = T>) -> T {
 ///
 /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
 pub fn run_builder<T>(builder: &mut Builder, main: impl Future<Output = T>) -> T {
-    #[cfg(target_os = "illumos")]
-    if let Err(e) = tokio_dtrace::register_hooks(builder) {
-        panic!("Failed to register tokio-dtrace hooks: {e}");
+    // If we can't construct the runtime, this is invariably fatal and there
+    // is no way to recover. So, let's just panic here instead of making
+    // the `main` function handle both the error returned by the main future
+    // *and* errors from initializing the runtime.
+    match build(builder) {
+        Ok(rt) => rt.block_on(main),
+        Err(e) => panic!("{e:?}"),
     }
+}
 
-    let rt = builder
+/// Applies configuration options to the provided Tokio runtime builder and
+/// constructs a new runtime.
+///
+/// This function is intended to be used when access to the
+/// [`Runtime`](tokio::runtime::Runtime) struct is required. For simpler
+/// use-cases, consider using [`run_builder()`].
+///
+/// **Note** that the following builder settings are overridden by this
+/// function:
+///
+/// - [`tokio::runtime::Builder::disable_lifo_slot`]
+/// - [`tokio::runtime::Builder::on_task_spawn`]
+/// - [`tokio::runtime::Builder::on_before_task_poll`]
+/// - [`tokio::runtime::Builder::on_after_task_poll`]
+/// - [`tokio::runtime::Builder::on_task_terminate`]
+/// - [`tokio::runtime::Builder::on_thread_start`]
+/// - [`tokio::runtime::Builder::on_thread_stop`]
+/// - [`tokio::runtime::Builder::on_thread_park`]
+/// - [`tokio::runtime::Builder::on_thread_unpark`]
+///
+/// Code which must set any of these configurations should probably just
+/// use the builder "manually".
+///
+/// # Errors
+///
+/// This function returns an error under the following conditions:
+///
+/// - On an illumos system, if initializing [`tokio-dtrace`] probes failed.
+/// - The Tokio runtime could not be created (typically because a worker thread
+///   could not be spawned).
+///
+/// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
+pub fn build(builder: &mut Builder) -> anyhow::Result<tokio::runtime::Runtime> {
+    #[cfg(target_os = "illumos")]
+    tokio_dtrace::register_hooks(builder)
+        .map_err(|e| anyhow::anyhow!("failed to initialize tokio-dtrace probes: {e}"))?;
+
+    builder
         .enable_all()
         // Tokio's "LIFO slot optimization" will place the last task notified by
         // another task on a worker thread in a special slot that is polled
@@ -136,13 +182,6 @@ pub fn run_builder<T>(builder: &mut Builder, main: impl Future<Output = T>) -> T
         //
         // See: https://github.com/tokio-rs/tokio/issues/4941
         .disable_lifo_slot()
-        .build();
-    // If we can't construct the runtime, this is invariably fatal and there
-    // is no way to recover. So, let's just panic here instead of making
-    // the `main` function handle both the error returned by the main future
-    // *and* errors from initializing the runtime.
-    match rt {
-        Ok(rt) => rt.block_on(main),
-        Err(e) => panic!("Failed to initialize Tokio runtime: {e}"),
-    }
+        .build()
+        .map_err(|e| anyhow::anyhow!("failed to initialize Tokio runtime: {e}"))
 }
