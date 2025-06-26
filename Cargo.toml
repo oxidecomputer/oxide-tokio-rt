@@ -32,6 +32,9 @@ workspace = true
 default = ["rt-multi-thread"]
 rt-multi-thread = ["tokio/rt-multi-thread"]
 
+[dependencies]
+anyhow = "1"
+
 [dependencies.tokio]
 version = "1.45.1"
 features = ["rt"]
