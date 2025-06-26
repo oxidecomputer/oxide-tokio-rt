@@ -137,12 +137,6 @@ pub fn run_builder<T>(builder: &mut Builder, main: impl Future<Output = T>) -> T
         //
         // See: https://github.com/tokio-rs/tokio/issues/4941
         .disable_lifo_slot()
-        // May as well include a number in worker thread names...
-        .thread_name_fn(|| {
-            static ATOMIC_ID: AtomicUsize = AtomicUsize::new(0);
-            let n = ATOMIC_ID.fetch_add(1, Ordering::AcqRel);
-            format!("tokio-runtime-worker-{n}")
-        })
         .build();
     // If we can't construct the runtime, this is invariably fatal and there
     // is no way to recover. So, let's just panic here instead of making
