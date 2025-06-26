@@ -120,7 +120,7 @@ pub fn run<T>(main: impl Future<Output = T>) -> T {
 /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
 pub fn run_builder<T>(builder: &mut Builder, main: impl Future<Output = T>) -> T {
     #[cfg(target_os = "illumos")]
-    if let Err(e) = tokio_dtrace::register_hooks(&mut builder) {
+    if let Err(e) = tokio_dtrace::register_hooks(builder) {
         panic!("Failed to register tokio-dtrace hooks: {e}");
     }
 
