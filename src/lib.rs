@@ -16,23 +16,25 @@ use std::future::Future;
 
 pub use tokio::runtime::Builder;
 
-pub struct OxideBuilder {
+pub struct OxideBuilder<'a> {
     signal_thread_set: Option<signal::SigSet>,
-    tokio_builder: Builder,
+    tokio_builder: TokioBuilderKind<'a>,
 }
 
-impl OxideBuilder {
+impl OxideBuilder<'static> {
     pub const fn new(tokio_builder: Builder) -> Self {
         Self {
             signal_thread_set: None,
-            tokio_builder,
+            tokio_builder: TokioBuilderKind::Owned(tokio_builder),
         }
     }
 
     /// Convenience method for:
     ///
     /// ```rust
+    /// # fn make_doctest_not_ugly() -> oxide_tokio_rt::OxideBuilder<'static> {
     /// oxide_tokio_rt::OxideBuilder::new(tokio::runtime::Builder::new_multi_thread())
+    /// # }
     /// ```
     pub fn new_multi_thread() -> Self {
         Self::new(tokio::runtime::Builder::new_multi_thread())
@@ -41,12 +43,17 @@ impl OxideBuilder {
     /// Convenience method for:
     ///
     /// ```rust
+    ///
+    /// # fn make_doctest_not_ugly() -> oxide_tokio_rt::OxideBuilder<'static> {
     /// oxide_tokio_rt::OxideBuilder::new(tokio::runtime::Builder::new_current_thread())
+    /// # }
     /// ```
     pub fn new_current_thread() -> Self {
         Self::new(tokio::runtime::Builder::new_current_thread())
     }
+}
 
+impl<'a> OxideBuilder<'a> {
     pub fn signal_thread(&mut self, mut signals: signal::SigSet) -> &mut Self {
         // tokio uses SIGCHLD for tokio-process, so the application itself is
         // probably not using it.
@@ -86,7 +93,7 @@ impl OxideBuilder {
     ///         // we can chain additional oxide-tokio-rt specific
     ///         // configurations, such as setting up a dedicated signal
     ///         // handling thread.
-    ///         .signal_thread(signal::SigSet::all());
+    ///         .signal_thread(signal::SigSet::all())
     ///         .build()
     ///         .unwrap();
     ///
@@ -95,7 +102,7 @@ impl OxideBuilder {
     /// }
     /// ```
     pub fn configure_tokio(&mut self, f: impl FnOnce(&mut tokio::runtime::Builder)) -> &mut Self {
-        f(&mut self.tokio_builder);
+        f(self.tokio_builder.as_mut());
         self
     }
 
@@ -161,10 +168,11 @@ impl OxideBuilder {
         }
 
         #[cfg(target_os = "illumos")]
-        tokio_dtrace::register_hooks(self.tokio_builder)
+        tokio_dtrace::register_hooks(self.tokio_builder.as_mut())
             .map_err(|e| anyhow::anyhow!("failed to initialize tokio-dtrace probes: {e}"))?;
 
         self.tokio_builder
+            .as_mut()
             .enable_all()
             // Tokio's "LIFO slot optimization" will place the last task notified by
             // another task on a worker thread in a special slot that is polled
@@ -193,11 +201,56 @@ impl OxideBuilder {
     }
 }
 
-impl From<Builder> for OxideBuilder {
+/// A somewhat unfortunate, and arguably overengineered, bit of jank to allow us
+/// more API flexibility when constructing `OxideBuilder`s. We would like the
+/// common path for using the `OxideBuilder` to construct a Tokio `Runtime` to
+/// have the `OxideBuilder` owning the `tokio::runtime::Builder`, so that the
+/// user need not construct a `tokio::runtime::Builder` and stick it in a `let`
+/// binding so that it can be provided to the `OxideBuilder` as an `&mut
+/// tokio::runtime::Builder`. However, prior to adding our own builder type, we
+/// also had the [`build()`] and [`run_builder()`] free functions, which took
+/// *mutably borrowed* `&mut tokio::runtime::Builder`s and used them to
+/// construct a runtime. We would like _those_ free functions to be
+/// re-implemented by using the `OxideBuilder` type with its default
+/// configurations, and we would _also_ like them to work with an `OxideBuilder`
+/// in place of the `tokio::runtime::Builder`. Thus, we would like their
+/// argument to be `impl Into<OxideBuilder>`, and we would like to ensure that
+/// `&mut tokio::runtime::Builder` implements `Into<OxideBuilder>`, so that
+/// existing code which called those functions with an `&mut
+/// tokio::runtime::Builder` does not break.
+///
+/// And that's how we ended up here. Presenting the nicest possible API requires
+/// us to be able to construct an `OxideBuilder` from an owned
+/// `tokio::runtime::Builder` *or* a mutably borrowed `&mut
+/// tokio::runtime::Builder`. So, we use this goofy little enum to allow that.
+enum TokioBuilderKind<'a> {
+    Owned(Builder),
+    Borrowed(&'a mut Builder),
+}
+
+impl<'a> TokioBuilderKind<'a> {
+    fn as_mut(&mut self) -> &mut Builder {
+        match self {
+            TokioBuilderKind::Owned(builder) => builder,
+            TokioBuilderKind::Borrowed(builder) => builder,
+        }
+    }
+}
+
+impl From<Builder> for OxideBuilder<'static> {
     fn from(tokio_builder: Builder) -> Self {
         Self {
             signal_thread_set: None,
-            tokio_builder,
+            tokio_builder: TokioBuilderKind::Owned(tokio_builder),
+        }
+    }
+}
+
+impl<'a> From<&'a mut Builder> for OxideBuilder<'a> {
+    fn from(tokio_builder: &'a mut Builder) -> Self {
+        Self {
+            signal_thread_set: None,
+            tokio_builder: TokioBuilderKind::Borrowed(tokio_builder),
         }
     }
 }
@@ -311,7 +364,10 @@ pub fn run<T>(main: impl Future<Output = T>) -> T {
 ///   could not be spawned).
 ///
 /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
-pub fn run_builder<T>(builder: impl Into<OxideBuilder>, main: impl Future<Output = T>) -> T {
+pub fn run_builder<'a, T>(
+    builder: impl Into<OxideBuilder<'a>>,
+    main: impl Future<Output = T>,
+) -> T {
     builder.into().run(main)
 }
 
@@ -347,6 +403,6 @@ pub fn run_builder<T>(builder: impl Into<OxideBuilder>, main: impl Future<Output
 ///   could not be spawned).
 ///
 /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
-pub fn build(builder: impl Into<OxideBuilder>) -> anyhow::Result<tokio::runtime::Runtime> {
+pub fn build<'a>(builder: impl Into<OxideBuilder<'a>>) -> anyhow::Result<tokio::runtime::Runtime> {
     builder.into().build()
 }
