@@ -54,6 +54,45 @@ impl OxideBuilder<'static> {
 }
 
 impl<'a> OxideBuilder<'a> {
+    /// Route all signals in the provided [`signal::SigSet`] to a dedicated
+    /// signal-handling thread.
+    ///
+    /// If this configuration is provided, prior to building the Tokio runtime,
+    /// the builder will do the following:
+    ///
+    /// 1. Set a signal mask on the *current* thread (presumably the main
+    ///    thread) which disables all signals in the provided
+    ///    [`signal::SigSet`].
+    ///
+    ///    This is done by calling [`pthread_sigmask`]`(`[`SIG_BLOCK`]`, ...)`
+    ///    with the provided [`signal::SigSet`] as the signal mask. The use of
+    ///    [`SIG_BLOCK`] rather than [`SIG_SETMASK`] ensures that any other
+    ///    signals already masked remain masked, in addition to the requested
+    ///    signals.
+    /// 2. Spawn a dedicated signal-handling thread (named "signal-thread"),
+    ///    which calls [`sigsuspend(2)`] in a loop with a signal mask that is
+    ///    the *inverse* of the provided [`signal::SigSet`].
+    ///
+    /// When the runtime is constructed, any worker threads it spawns will be
+    /// children of the current thread, and will therefore inherit its signal
+    /// mask, which disables the signals in the provided [`signal::SigSet`].
+    /// This ensures that all of those signals will always be delivered to the
+    /// dedicated signal-handling thread, while any signal *not* in the set
+    /// may be delivered to any other thread in the process, and will *never*
+    /// be delivered to the signal-handling thread.
+    ///
+    /// We assume that in applications using Tokio, `SIGCHLD` is being used by
+    /// `tokio::process`, rather than the application itself. Therefore,
+    /// `SIGCHLD` is *always* added to the set of signals to be delviered to the
+    /// dedicated signal handling thread, and calling `signal_thread` with an
+    /// empty [`signal::SigSet`] will still result in `SIGCHLD` being delivered
+    /// to the signal therad. However, other signals may also be added to the
+    /// set, and they will be routed to the signal thread as well.
+    ///
+    /// [`sigsuspend(2)`]: https://man7.org/linux/man-pages/man2/sigsuspend.2.html
+    /// [`pthread_sigmask`]: https://man7.org/linux/man-pages/man3/pthread_sigmask.3.html
+    /// [`SIG_BLOCK`]: https://man7.org/linux/man-pages/man2/sigprocmask.2.html#DESCRIPTION
+    /// [`SIG_SETMASK`]: https://man7.org/linux/man-pages/man2/sigprocmask.2.html#DESCRIPTION
     pub fn signal_thread(&mut self, mut signals: signal::SigSet) -> &mut Self {
         // tokio uses SIGCHLD for tokio-process, so the application itself is
         // probably not using it.
