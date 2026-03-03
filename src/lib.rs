@@ -16,12 +16,76 @@ use std::future::Future;
 
 pub use tokio::runtime::Builder;
 
+/// A wrapper around [`tokio::runtime::Builder`] that adds additional
+/// Oxide-specific configurations.
+///
+/// This builder allows configuring functionality provided by `oxide-tokio-rt`
+/// in addition to the Tokio configurations set using
+/// [`tokio::runtime::Builder`].
+///
+/// # Usage
+///
+/// An `OxideBuilder` contains a [`tokio::runtime::Builder`]. The Tokio builder
+/// may be accessed mutably using the
+/// [`configure_tokio()`](Self::configure_tokio) method. This may be used to set
+/// Tokio configurations prior to building a runtime.
+///
+/// An `OxideBuilder` can be constructed from a [`tokio::runtime::Builder`]
+/// using [`OxideBuilder::new`]. In addition, `OxideBuilder` implements both
+/// [`From<tokio::runtime::Builder>`] *and* [`From<&mut
+/// tokio::runtime::Builder>`]. These conversions may be used to construct an
+/// `OxideBuilder` from a [`tokio::runtime::Builder`] with preexisting
+/// configurations.
+///
+/// Alternatively, the [`OxideBuilder::new_multi_thread`] and
+/// [`OxideBuilder::new_current_thread`] functions construct a new
+/// `OxideBuilder` with the default [`tokio::runtime::Builder`] for a
+/// multi-threaded and current-thread runtime, respectively.
+///
+/// Once the builder has been configured, use [`OxideBuilder::build`] to
+/// construct a new [`tokio::runtime::Runtime`] with the requested
+/// configuration. Alternatively, the [`OxideBuilder::run`] method provides a
+/// convenience API to both construct a runtime and execute a provided future in
+/// [`tokio::runtime::Runtime::block_on`] in a single function call.
+///
+/// # Overridden Tokio Builder Configurations
+///
+/// When constructing a [`tokio::runtime::Runtime`] using an `OxideBuilder`, the
+/// following configuration options set on the [`tokio::runtime::Builder`] are
+/// *always* overridden by `oxide-tokio-rt`:
+///
+/// - [`tokio::runtime::Builder::disable_lifo_slot`]
+/// - [`tokio::runtime::Builder::on_task_spawn`]
+/// - [`tokio::runtime::Builder::on_before_task_poll`]
+/// - [`tokio::runtime::Builder::on_after_task_poll`]
+/// - [`tokio::runtime::Builder::on_task_terminate`]
+/// - [`tokio::runtime::Builder::on_thread_start`]
+/// - [`tokio::runtime::Builder::on_thread_stop`]
+/// - [`tokio::runtime::Builder::on_thread_park`]
+/// - [`tokio::runtime::Builder::on_thread_unpark`]
+///
+/// If an `OxideBuilder` is constructed from a `tokio::runtime::Builder` that
+/// sets values for these configurations using [`OxideBuilder::new`], or if
+/// [`OxideBuilder::configure_tokio`] is used to set any of these
+/// configurations, the user-provided configuration is **always** clobbered!
+///
+/// Code which must set any of these configurations should probably just
+/// use the [`tokio::runtime::Builder`] "manually".
+///
+/// [`From<tokio::runtime::Builder>`]:  #impl-From<Builder>-for-OxideBuilder<'static>
+/// [`From<&mut tokio::runtime::Builder>`]: #impl-From<%26mut+Builder>-for-OxideBuilder<'a>
 pub struct OxideBuilder<'a> {
     signal_thread_set: Option<signal::SigSet>,
     tokio_builder: TokioBuilderKind<'a>,
 }
 
 impl OxideBuilder<'static> {
+    /// Constructs a new [`OxideBuilder`] from the provided
+    /// [`tokio::runtime::Builder`].
+    ///
+    /// Any Tokio configuration options already set on `tokio_builder` will be
+    /// used when constructing the runtime, with the exceptions of those listed
+    /// [here](#overridden-tokio-builder-configurations).
     pub const fn new(tokio_builder: Builder) -> Self {
         Self {
             signal_thread_set: None,
@@ -111,16 +175,21 @@ impl<'a> OxideBuilder<'a> {
     /// on the [`tokio::runtime::Builder`]. This method returns a `&mut Self`.
     /// This interface is intended to allow convenient method chaining of
     /// `oxide-tokio-rt` and `tokio::runtime::Builder` configuration, without
-    /// requiring temporary variables for either builder. For example:
+    /// requiring temporary variables for either builder.
+    ///
+    /// Note that the Tokio configuration options listed
+    /// [here](#overridden-tokio-builder-configurations) will always be
+    /// overridden by `oxide-tokio-rt` when constructing the runtime. **Any
+    /// user-provided configurations for those settings will be overridden**.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use oxide_tokio_rt::OxideBuilder;
-    /// use tokio::runtime::Builder;
     /// use nix::sys::signal::{self, SigHandler, SigSet, Signal};
     ///
-    ///
     /// fn main() {
-    ///     let runtime = OxideBuilder::new(tokio::runtime::Builder::new_multi_thread())
+    ///     let runtime = OxideBuilder::new_multi_thread()
     ///         .configure_tokio(|tokio| {
     ///             // Any number of `tokio::runtime::Builder` methods may
     ///             // be called here.,,
@@ -145,6 +214,35 @@ impl<'a> OxideBuilder<'a> {
         self
     }
 
+    /// Creates the configured [`tokio::runtime::Runtime`].
+    ///
+    /// The returned `Runtime` instance is ready to spawn tasks.
+    ///
+    /// This function is intended to be used when access to the
+    /// [`Runtime`](tokio::runtime::Runtime) struct is required. For simpler
+    /// use-cases, consider using [`OxideBuilder::run()`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use oxide_tokio_rt::OxideBuilder;
+    ///
+    /// let rt  = OxideBuilder::new_multi_thread().build().unwrap();
+    ///
+    /// rt.block_on(async {
+    ///     println!("Hello from the Tokio runtime");
+    /// });
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error under the following conditions:
+    ///
+    /// - On an illumos system, if initializing [`tokio-dtrace`] probes failed.
+    /// - The Tokio runtime could not be created (typically because a worker thread
+    ///   could not be spawned).
+    ///
+    /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
     pub fn build(&mut self) -> anyhow::Result<tokio::runtime::Runtime> {
         struct FmtSigSet(signal::SigSet);
         impl fmt::Display for FmtSigSet {
@@ -228,6 +326,36 @@ impl<'a> OxideBuilder<'a> {
             .map_err(|e| anyhow::anyhow!("failed to initialize Tokio runtime: {e}"))
     }
 
+    /// Creates the configured [`tokio::runtime::Runtime`], and executes the
+    /// provided `main` future in a call to
+    /// [`Runtime::block_on()`](tokio::runtime::Runtime::block_on).
+    ///
+    /// If access to the [`Runtime`] is required, use [`OxideBuilder::build()`],
+    /// which returns the [`Runtime`], instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use oxide_tokio_rt::OxideBuilder;
+    ///
+    /// let rt  = OxideBuilder::new_multi_thread().build().unwrap();
+    ///
+    /// rt.block_on(async {
+    ///     println!("Hello from the Tokio runtime");
+    /// });
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// This function panics under the following conditions:
+    ///
+    /// - On an illumos system, if initializing [`tokio-dtrace`] probes failed.
+    /// - The Tokio runtime could not be created (typically because a worker thread
+    ///   could not be spawned).
+    ///
+    /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
+    /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
+    /// [`Runtime`]: tokio::runtime::Runtime
     pub fn run<T>(&mut self, main: impl Future<Output = T>) -> T {
         // If we can't construct the runtime, this is invariably fatal and there
         // is no way to recover. So, let's just panic here instead of making
@@ -350,21 +478,12 @@ pub fn run<T>(main: impl Future<Output = T>) -> T {
 /// required, consider using [`build()`], which returns a
 /// [`Runtime`](tokio::runtime::Runtime).
 ///
-/// **Note** that the following builder settings are overridden by this
-/// function:
-///
-/// - [`tokio::runtime::Builder::disable_lifo_slot`]
-/// - [`tokio::runtime::Builder::on_task_spawn`]
-/// - [`tokio::runtime::Builder::on_before_task_poll`]
-/// - [`tokio::runtime::Builder::on_after_task_poll`]
-/// - [`tokio::runtime::Builder::on_task_terminate`]
-/// - [`tokio::runtime::Builder::on_thread_start`]
-/// - [`tokio::runtime::Builder::on_thread_stop`]
-/// - [`tokio::runtime::Builder::on_thread_park`]
-/// - [`tokio::runtime::Builder::on_thread_unpark`]
+/// **Note** that the `tokio::runtime::Builder` configurations [listed
+/// here](#overridden-tokio-builder-configurations) will *always* be
+/// overriden by this function.
 ///
 /// Code which must set any of these configurations should probably just
-/// use the builder "manually".
+/// use the [`tokio::runtime::Builder`] "manually".
 ///
 /// # Examples
 ///
@@ -391,6 +510,24 @@ pub fn run<T>(main: impl Future<Output = T>) -> T {
 ///     oxide_tokio_rt::run_builder(&mut builder, async {
 ///        // ... actually do async stuff ...
 ///     })
+/// }
+/// ```
+///
+/// Since this function accepts any type implementing
+/// `Into<`[`OxideBuilder`]`<'a>>`, it may be called with a
+/// [`tokio::runtime::Builder`] *or* an [`OxideBuilder`]. For example:
+///
+/// ```rust
+/// fn main() {
+///     let builder = oxide_tokio_rt::OxideBuilder::new_current_thread()
+///         // configure any OxideBuilder settings as desired...
+///     ;
+///     oxide_tokio_rt::run_builder(
+///         builder,
+///         async {
+///             // ... actually do async stuff ...
+///         },
+///     )
 /// }
 /// ```
 ///
