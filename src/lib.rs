@@ -261,10 +261,6 @@ impl<'a> OxideBuilder<'a> {
             }
         }
 
-        #[cfg(target_os = "illumos")]
-        tokio_dtrace::register_hooks(tokio_builder)
-            .map_err(|e| anyhow::anyhow!("failed to initialize tokio-dtrace probes: {e}"))?;
-
         if let Some(mask) = self.signal_thread_set {
             // First, mask out the signals on the current thread. We use
             // `thread_block()` rather than `thread_set_mask()` as we would like
