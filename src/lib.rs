@@ -392,6 +392,12 @@ impl<'a> OxideBuilder<'a> {
 /// us to be able to construct an `OxideBuilder` from an owned
 /// `tokio::runtime::Builder` *or* a mutably borrowed `&mut
 /// tokio::runtime::Builder`. So, we use this goofy little enum to allow that.
+// Rather than boxing the `Owned` variant, we just tell clippy to shut up about
+// this: we expect most programs will only use one or the other, and the owned
+// variant is likely to be the more common one. We aren't passing these around
+// in hot code, so I don't think the wasted stack size for the `Borrowed`
+// variant matters all that much.
+#[allow(clippy::large_enum_variant)]
 enum TokioBuilderKind<'a> {
     Owned(Builder),
     Borrowed(&'a mut Builder),
