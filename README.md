@@ -221,7 +221,7 @@ fn main() {
         // we can chain additional oxide-tokio-rt specific
         // configurations, such as setting up a dedicated signal
         // handling thread.
-        .signal_thread(nix::signal::SigSet::all())
+        .signal_thread(nix::sys::signal::SigSet::all())
         .run(async move {
             // Actually run your application code here!
             println!("hello from the tokio runtime!")
