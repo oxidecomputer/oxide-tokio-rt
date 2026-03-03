@@ -10,6 +10,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use anyhow::Context;
+#[cfg(unix)]
 use nix::sys::signal;
 use std::fmt;
 use std::future::Future;
@@ -157,6 +158,7 @@ impl<'a> OxideBuilder<'a> {
     /// [`pthread_sigmask`]: https://man7.org/linux/man-pages/man3/pthread_sigmask.3.html
     /// [`SIG_BLOCK`]: https://man7.org/linux/man-pages/man2/sigprocmask.2.html#DESCRIPTION
     /// [`SIG_SETMASK`]: https://man7.org/linux/man-pages/man2/sigprocmask.2.html#DESCRIPTION
+    #[cfg(unix)]
     pub fn signal_thread(&mut self, mut signals: signal::SigSet) -> &mut Self {
         // tokio uses SIGCHLD for tokio-process, so the application itself is
         // probably not using it.

@@ -39,7 +39,7 @@ rt-multi-thread = ["tokio/rt-multi-thread"]
 [dependencies]
 anyhow = "1"
 
-[dependencies.nix]
+[target.'cfg(unix)'.dependencies.nix]
 version = "0.31"
 features = ["signal"]
 

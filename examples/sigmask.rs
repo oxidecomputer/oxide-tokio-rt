@@ -1,5 +1,7 @@
 // Example of https://github.com/oxidecomputer/oxide-tokio-rt/issues/3
 
+#![cfg(unix)]
+
 use anyhow::Context;
 use clap::Parser;
 use nix::sys::signal::{self, SigHandler, SigSet, Signal};
