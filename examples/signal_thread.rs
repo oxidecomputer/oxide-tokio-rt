@@ -65,7 +65,7 @@ fn main() -> anyhow::Result<()> {
                 "Hello! My PID is {pid}. I {} have a dedicated signal \
                  handling thread.\n\
                  Please send me SIGUSR1 and SIGUSR2 using `kill -USR1 {pid}` \
-                 and see what\nhappens!\n\n{SIGHELP}",
+                 and see what\nhappens!\n\n{SIGHELP}\n",
                 if sigthread_enabled { "do" } else { "don't" },
             );
             let mut pipe =
@@ -108,7 +108,12 @@ const SIGHELP: &str = "\
     If there is a dedicated signal handling thread, only SIGUSR1 is routed\n\
     to that thread. However, I will handle both SIGUSR1 *and* SIGUSR2, to\n\
     allow testing both signals that are routed to the dedicated signal\n\
-    handling thread, and signals that are not.";
+    handling thread, and signals that are not.\n\
+    Also, please note that the name of the dedicated signal thread is\n\
+    \"signal-thread\" while the name of the main thread is going to be\n\
+    the name of the binary, which is \"signal_thread\". These strings\n\
+    are easily confused. I also hate this and I'm sorry.\n
+";
 
 extern "C" fn handler(signal: libc::c_int) {
     let fd = PIPE_TX.load(Ordering::Relaxed);
