@@ -60,6 +60,9 @@ fn main() -> anyhow::Result<()> {
     let rt = builder.build()?;
     rt.block_on(async move {
         tokio::spawn(async move {
+            // Make sure the runtime has something else to do.
+            tokio::spawn(std::future::pending::<()>());
+
             let pid = std::process::id();
             eprintln!(
                 "Hello! My PID is {pid}. I {} have a dedicated signal \
