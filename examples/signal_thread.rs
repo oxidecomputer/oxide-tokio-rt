@@ -72,7 +72,7 @@ fn main() -> anyhow::Result<()> {
                 tokio::net::unix::pipe::Receiver::from_owned_fd(pipe_rx_fd)
                     .context("can't get ye pipe")?;
             let mut tidbytes = [0u8; size_of::<Pthread>()];
-            while let Ok(_) = pipe.read_exact(&mut tidbytes).await {
+            while pipe.read_exact(&mut tidbytes).await.is_ok() {
                 let mut sigbytes = [0u8; size_of::<libc::c_int>()];
                 pipe.read_exact(&mut sigbytes)
                     .await
