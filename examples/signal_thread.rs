@@ -84,8 +84,15 @@ fn main() -> anyhow::Result<()> {
                 let sig =
                     Signal::try_from(libc::c_int::from_ne_bytes(sigbytes));
 
-                // this is the max size on linux, on other systems we shall truncate i guess?
-                let mut namebuf = [0u8; 16];
+                // on linux, thread names are always truncated to 16 characters.
+                // on illumos, however, they are not, and instead,
+                // `pthread_getname_np` will return `ERANGE` if the buffer isn't
+                // big enough. we expect a number of the threads to be named
+                // "tokio-runtime-worker", which is 20 characters. so just make
+                // it Plenty Big and accept that we are giving Linux twice as
+                // many bytes as it will fill. this is example code and i don't
+                // care.
+                let mut namebuf = [0u8; 32];
                 let tname = pthread_getname_sp(tid, &mut namebuf);
                 let tname = tname.as_deref().unwrap_or("<unknown name>");
                 let bonus = if tid == mains_tid {
