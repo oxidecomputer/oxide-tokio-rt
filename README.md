@@ -13,6 +13,8 @@ In particular, it currently does the following:
 - Disables Tokio's [LIFO slot optimization]. This feature is intended to 
   improve message-passing latency, but because tasks in the LIFO slot do not
   currently participate in work-stealing, it can result in extreme latency spikes in some cases (see [omicron#8334] for a worked example).
+- Provides [other process initialization utilities](#other-utilities) for
+  software using Tokio.
   
 ## When to Use This Crate
 
@@ -161,7 +163,7 @@ fn main() {
 }
 ```
 
-## Warning on Use of `#[tokio::main]`
+### Warning on Use of `#[tokio::main]`
 
 [Clippy]'s [`disallowed_macros`] lint can be used to configure Clippy to emit
 a warning when the `#[tokio::main]` attribute is used, to ensure that
@@ -191,6 +193,39 @@ explaining why `#[tokio::main]` is in use. For example:
 #[tokio::main]
 async fn main() {
     // ...
+}
+```
+
+## Other Utilities
+
+In addition to providing common configurations for the Tokio runtime, `oxide-tokio-rt` provides additional utilities for use in the `main` functions of programs which run most of their code on a Tokio runtime. These utility
+features are enabled using the `OxideBuilder` type provided by this crate. See
+that type's documentation for a complete list of `oxide-tokio-rt`-specific features.
+
+When using the additional utilities provided by `oxide-tokio-rt`, use the
+`OxideBuilder` type to configure and construct the Tokio runtime. For example:
+
+```rust
+use oxide_tokio_rt::OxideBuilder;
+
+fn main() {
+    OxideBuilder::new_multi_thread()
+        .configure_tokio(|tokio| {
+            // Any number of `tokio::runtime::Builder` methods may
+            // be called here.,,
+            tokio.worker_threads(4)
+                .thread_name("my-runtime-worker")
+                .thread_stack_size(3 * 1024 * 1024);
+        })
+        // Since `configure_tokio` returns `&mut OxideBuilder`,
+        // we can chain additional oxide-tokio-rt specific
+        // configurations, such as setting up a dedicated signal
+        // handling thread.
+        .signal_thread(nix::sys::signal::SigSet::all())
+        .run(async move {
+            // Actually run your application code here!
+            println!("hello from the tokio runtime!")
+        })
 }
 ```
 
