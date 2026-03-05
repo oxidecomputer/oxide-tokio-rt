@@ -84,7 +84,7 @@ fn main() -> anyhow::Result<()> {
                 let sig =
                     Signal::try_from(libc::c_int::from_ne_bytes(sigbytes));
 
-                // on linux, thread names are always truncated to 16 characters.
+                // on Linux, thread names are always truncated to 16 characters.
                 // on illumos, however, they are not, and instead,
                 // `pthread_getname_np` will return `ERANGE` if the buffer isn't
                 // big enough. we expect a number of the threads to be named
@@ -94,15 +94,33 @@ fn main() -> anyhow::Result<()> {
                 // care.
                 let mut namebuf = [0u8; 32];
                 let tname = pthread_getname_sp(tid, &mut namebuf);
-                let tname = tname.as_deref().unwrap_or("<unknown name>");
-                let bonus = if tid == mains_tid {
-                    " <-- this is actually the main thread"
-                } else {
-                    ""
-                };
-                println!(
-                    "we get signal {sig:?} on thread {tid} ({tname}){bonus}"
-                );
+                let mut tname = tname.as_deref().unwrap_or("<unknown name>");
+
+                // on Linux, the name of the main thread returned by
+                // `pthread_getname_np` appears to be the name of the
+                // executable. this is generally a reasonable thing for it to
+                // return, except for the unfortunate fact that the name of the
+                // dedicated signal thread is hard-coded to be "signal-thread",
+                // and the name of the binary is..."signal_thread". note the `-`
+                // vs `_`. "signal_thread" is, unfortunately, the best name I
+                // can come up with for the example, since that's the name of
+                // the API it demonstrates. but this is very confusing for the
+                // hapless individual who runs the example on Linux, and
+                // mistakenly believes that the signal thread is receiving ALL
+                // signals.
+                //
+                // meanwhile, on illumos, the name of the main thread appears to
+                // be "" (i.e., empty string). this is also a bit weird but also
+                // not entirely unreasonable.
+                //
+                // for both of these reasons, we just special-case the main
+                // thread's pthread ID and don't use the name from
+                // `pthread_getname_np`. this hopefully makes the example's
+                // behavior less confusing, rather than more confusing?
+                if tid == mains_tid {
+                    tname = "<the main thread>";
+                }
+                println!("we get signal {sig:?} on thread {tid} ({tname})");
             }
 
             Ok::<(), anyhow::Error>(())
@@ -119,10 +137,6 @@ const SIGHELP: &str = "\
     to that thread. However, I will handle both SIGUSR1 *and* SIGUSR2, to\n\
     allow testing both signals that are routed to the dedicated signal\n\
     handling thread, and signals that are not.\n\
-    Also, please note that the name of the dedicated signal thread is\n\
-    \"signal-thread\" while the name of the main thread is going to be\n\
-    the name of the binary, which is \"signal_thread\". These strings\n\
-    are easily confused. I also hate this and I'm sorry.\n
 ";
 
 extern "C" fn handler(signal: libc::c_int) {
