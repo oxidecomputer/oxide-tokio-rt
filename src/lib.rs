@@ -211,7 +211,10 @@ impl<'a> OxideBuilder<'a> {
     ///    # drop(runtime);
     /// }
     /// ```
-    pub fn configure_tokio(&mut self, f: impl FnOnce(&mut tokio::runtime::Builder)) -> &mut Self {
+    pub fn configure_tokio(
+        &mut self,
+        f: impl FnOnce(&mut tokio::runtime::Builder),
+    ) -> &mut Self {
         f(self.tokio_builder.as_mut());
         self
     }
@@ -265,8 +268,9 @@ impl<'a> OxideBuilder<'a> {
             // First, mask out the signals on the current thread. We use
             // `thread_block()` rather than `thread_set_mask()` as we would like
             // to respect any already-masked signals.
-            mask.thread_block()
-                .with_context(|| format!("failed to mask signal set {}", FmtSigSet(mask)))?;
+            mask.thread_block().with_context(|| {
+                format!("failed to mask signal set {}", FmtSigSet(mask))
+            })?;
             // Make the signal mask for the signal thread, which is the inverse
             // of the mask we just set.
             let mut sigthread_mask = signal::SigSet::all();
@@ -303,8 +307,11 @@ impl<'a> OxideBuilder<'a> {
         }
 
         #[cfg(target_os = "illumos")]
-        tokio_dtrace::register_hooks(self.tokio_builder.as_mut())
-            .map_err(|e| anyhow::anyhow!("failed to initialize tokio-dtrace probes: {e}"))?;
+        tokio_dtrace::register_hooks(self.tokio_builder.as_mut()).map_err(
+            |e| {
+                anyhow::anyhow!("failed to initialize tokio-dtrace probes: {e}")
+            },
+        )?;
 
         self.tokio_builder
             .as_mut()
@@ -321,7 +328,9 @@ impl<'a> OxideBuilder<'a> {
             // See: https://github.com/tokio-rs/tokio/issues/4941
             .disable_lifo_slot()
             .build()
-            .map_err(|e| anyhow::anyhow!("failed to initialize Tokio runtime: {e}"))
+            .map_err(|e| {
+                anyhow::anyhow!("failed to initialize Tokio runtime: {e}")
+            })
     }
 
     /// Creates the configured [`tokio::runtime::Runtime`], and executes the
@@ -583,6 +592,8 @@ pub fn run_builder<'a, T>(
 ///   could not be spawned).
 ///
 /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
-pub fn build<'a>(builder: impl Into<OxideBuilder<'a>>) -> anyhow::Result<tokio::runtime::Runtime> {
+pub fn build<'a>(
+    builder: impl Into<OxideBuilder<'a>>,
+) -> anyhow::Result<tokio::runtime::Runtime> {
     builder.into().build()
 }
