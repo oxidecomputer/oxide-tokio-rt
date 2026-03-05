@@ -121,7 +121,10 @@ pub fn run<T>(main: impl Future<Output = T>) -> T {
 ///   could not be spawned).
 ///
 /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
-pub fn run_builder<T>(builder: &mut Builder, main: impl Future<Output = T>) -> T {
+pub fn run_builder<T>(
+    builder: &mut Builder,
+    main: impl Future<Output = T>,
+) -> T {
     // If we can't construct the runtime, this is invariably fatal and there
     // is no way to recover. So, let's just panic here instead of making
     // the `main` function handle both the error returned by the main future
@@ -166,8 +169,9 @@ pub fn run_builder<T>(builder: &mut Builder, main: impl Future<Output = T>) -> T
 /// [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
 pub fn build(builder: &mut Builder) -> anyhow::Result<tokio::runtime::Runtime> {
     #[cfg(target_os = "illumos")]
-    tokio_dtrace::register_hooks(builder)
-        .map_err(|e| anyhow::anyhow!("failed to initialize tokio-dtrace probes: {e}"))?;
+    tokio_dtrace::register_hooks(builder).map_err(|e| {
+        anyhow::anyhow!("failed to initialize tokio-dtrace probes: {e}")
+    })?;
 
     builder
         .enable_all()
