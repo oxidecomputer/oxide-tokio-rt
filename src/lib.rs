@@ -21,7 +21,7 @@ pub use tokio::runtime::Builder;
 compile_error!(
     "`--cfg tokio_unstable` is required to build oxide-tokio-rt.\n\n\
      If your project already sets it in its .cargo/config.toml, make sure\n\
-     you don't hava a global ~/.cargo/config.toml (for example to use mold).\n"
+     you don't hava a global ~/.cargo/config.toml (for example, to use mold).\n"
 );
 
 /// A wrapper around [`tokio::runtime::Builder`] that adds additional
