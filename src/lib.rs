@@ -17,6 +17,13 @@ use std::future::Future;
 
 pub use tokio::runtime::Builder;
 
+#[cfg(not(tokio_unstable))]
+compile_error!(
+    "`--cfg tokio_unstable` is required to build oxide-tokio-rt.\n\n\
+     If your project already sets it in its .cargo/config.toml, make sure\n\
+     you don't hava a global ~/.cargo/config.toml (for example to use mold).\n"
+);
+
 /// A wrapper around [`tokio::runtime::Builder`] that adds additional
 /// Oxide-specific configurations.
 ///
@@ -313,24 +320,22 @@ impl<'a> OxideBuilder<'a> {
             },
         )?;
 
-        self.tokio_builder
-            .as_mut()
-            .enable_all()
-            // Tokio's "LIFO slot optimization" will place the last task notified by
-            // another task on a worker thread in a special slot that is polled
-            // before any other tasks from that worker's run queue. This is intended
-            // to reduce latency in message-passing systems. However, the LIFO slot
-            // currently does not participate in work-stealing, meaning that it can
-            // actually *increase* latency substantially when the task that caused
-            // the wakeup goes CPU-bound for a long period of time. Therefore, we
-            // disable this optimization until the LIFO slot is made stealable.
-            //
-            // See: https://github.com/tokio-rs/tokio/issues/4941
-            .disable_lifo_slot()
-            .build()
-            .map_err(|e| {
-                anyhow::anyhow!("failed to initialize Tokio runtime: {e}")
-            })
+        // Tokio's "LIFO slot optimization" will place the last task notified by
+        // another task on a worker thread in a special slot that is polled
+        // before any other tasks from that worker's run queue. This is intended
+        // to reduce latency in message-passing systems. However, the LIFO slot
+        // currently does not participate in work-stealing, meaning that it can
+        // actually *increase* latency substantially when the task that caused
+        // the wakeup goes CPU-bound for a long period of time. Therefore, we
+        // disable this optimization until the LIFO slot is made stealable.
+        //
+        // See: https://github.com/tokio-rs/tokio/issues/4941
+        #[cfg(tokio_unstable)]
+        self.tokio_builder.as_mut().disable_lifo_slot();
+
+        self.tokio_builder.as_mut().enable_all().build().map_err(|e| {
+            anyhow::anyhow!("failed to initialize Tokio runtime: {e}")
+        })
     }
 
     /// Creates the configured [`tokio::runtime::Runtime`], and executes the
