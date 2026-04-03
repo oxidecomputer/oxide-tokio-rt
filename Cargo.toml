@@ -9,7 +9,7 @@ repository = "https://github.com/oxidecomputer/oxide-tokio-rt"
 license = "MPL-2.0"
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(doc_cfg)"] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(doc_cfg, tokio_unstable)"] }
 
 [package]
 name = "oxide-tokio-rt"
