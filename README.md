@@ -10,6 +10,15 @@ In particular, it currently does the following:
 
 - On illumos, configures the runtime to emit DTrace probes, using 
   [`tokio-dtrace`].
+- Enables [eager I/O and time driver handoff][eager] for the [multi-threaded
+  Tokio runtime][rt-mt].
+
+  This is currently an experimental feature, although it is your author's
+  opinion that this is really a fix for incorrect runtime behavior. It changes
+  worker threads in the multi-threaded runtime to wake another worker prior to
+  polling tasks if that worker had previously been parked on the I/O driver or
+  timer wheel. Eagerly handing off these resources prevents pathologies such
+  as [omicron#9619].
 - Provides [other process initialization utilities](#other-utilities) for
   software using Tokio.
   
@@ -229,8 +238,9 @@ fn main() {
 [Tokio]: https://tokio.rs
 [runtime]: https://docs.rs/tokio/latest/tokio/runtime/index.html
 [`#\[tokio::main\]`]: https://docs.rs/tokio/latest/tokio/attr.main.html
+[eager]: https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.enable_eager_driver_handoff
 [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
-[omicron#8334]: https://github.com/oxidecomputer/omicron/issues/8334#issuecomment-2993159283
+[omicron#9619]: https://github.com/oxidecomputer/omicron/issues/9619
 [unstable features]: https://docs.rs/tokio/latest/tokio/#unstable-features
 [rt-mt]: https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.new_multi_thread
 [`tokio::runtime::Builder`]: https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html

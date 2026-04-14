@@ -312,6 +312,15 @@ impl<'a> OxideBuilder<'a> {
                 })?;
         }
 
+        // Enable eager I/O and time driver hand-off (see tokio-rs/tokio#8010).
+        // This should prevent pathologies such as omicron#9619.
+        //
+        // Since this builder option requires the `tokio/rt-multi-thread`
+        // feature, we only enable it when *our* corresponding feature flag is
+        // enabled.
+        #[cfg(all(tokio_unstable, feature = "rt-multi-thread"))]
+        self.tokio_builder.as_mut().enable_eager_driver_handoff();
+
         #[cfg(target_os = "illumos")]
         tokio_dtrace::register_hooks(self.tokio_builder.as_mut()).map_err(
             |e| {
