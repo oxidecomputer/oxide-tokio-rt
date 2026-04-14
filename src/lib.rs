@@ -62,7 +62,6 @@ compile_error!(
 /// following configuration options set on the [`tokio::runtime::Builder`] are
 /// *always* overridden by `oxide-tokio-rt`:
 ///
-/// - [`tokio::runtime::Builder::disable_lifo_slot`]
 /// - [`tokio::runtime::Builder::on_task_spawn`]
 /// - [`tokio::runtime::Builder::on_before_task_poll`]
 /// - [`tokio::runtime::Builder::on_after_task_poll`]
@@ -319,19 +318,6 @@ impl<'a> OxideBuilder<'a> {
                 anyhow::anyhow!("failed to initialize tokio-dtrace probes: {e}")
             },
         )?;
-
-        // Tokio's "LIFO slot optimization" will place the last task notified by
-        // another task on a worker thread in a special slot that is polled
-        // before any other tasks from that worker's run queue. This is intended
-        // to reduce latency in message-passing systems. However, the LIFO slot
-        // currently does not participate in work-stealing, meaning that it can
-        // actually *increase* latency substantially when the task that caused
-        // the wakeup goes CPU-bound for a long period of time. Therefore, we
-        // disable this optimization until the LIFO slot is made stealable.
-        //
-        // See: https://github.com/tokio-rs/tokio/issues/4941
-        #[cfg(tokio_unstable)]
-        self.tokio_builder.as_mut().disable_lifo_slot();
 
         self.tokio_builder.as_mut().enable_all().build().map_err(|e| {
             anyhow::anyhow!("failed to initialize Tokio runtime: {e}")
