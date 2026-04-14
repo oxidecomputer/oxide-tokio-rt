@@ -10,9 +10,6 @@ In particular, it currently does the following:
 
 - On illumos, configures the runtime to emit DTrace probes, using 
   [`tokio-dtrace`].
-- Disables Tokio's [LIFO slot optimization]. This feature is intended to 
-  improve message-passing latency, but because tasks in the LIFO slot do not
-  currently participate in work-stealing, it can result in extreme latency spikes in some cases (see [omicron#8334] for a worked example).
 - Provides [other process initialization utilities](#other-utilities) for
   software using Tokio.
   
@@ -233,7 +230,6 @@ fn main() {
 [runtime]: https://docs.rs/tokio/latest/tokio/runtime/index.html
 [`#\[tokio::main\]`]: https://docs.rs/tokio/latest/tokio/attr.main.html
 [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
-[LIFO slot optimization]: https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.disable_lifo_slot
 [omicron#8334]: https://github.com/oxidecomputer/omicron/issues/8334#issuecomment-2993159283
 [unstable features]: https://docs.rs/tokio/latest/tokio/#unstable-features
 [rt-mt]: https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.new_multi_thread
