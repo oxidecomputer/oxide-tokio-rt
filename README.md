@@ -50,7 +50,6 @@ Some of the runtime settings configured by this crate require Tokio's [unstable
 features]. These are features of Tokio that do not yet have stable APIs, and
 may change in 1.x releases. Unlike other optional features, Tokio requires 
 that only the top-level binary workspace may opt in to these features (i.e.,
-
 they may not be enabled by library dependencies). This means that the unstable
 features are enabled using a `RUSTFLAGS` config, rather than a Cargo feature.
 
