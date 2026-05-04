@@ -19,6 +19,9 @@ In particular, it currently does the following:
   polling tasks if that worker had previously been parked on the I/O driver or
   timer wheel. Eagerly handing off these resources prevents pathologies such
   as [omicron#9619].
+- Disables Tokio's [LIFO slot optimization]. This feature is intended to 
+  improve message-passing latency, but because tasks in the LIFO slot do not
+  currently participate in work-stealing, it can result in extreme latency spikes in some cases (see [omicron#8334] for a worked example).
 - Provides [other process initialization utilities](#other-utilities) for
   software using Tokio.
   
@@ -239,6 +242,8 @@ fn main() {
 [`#\[tokio::main\]`]: https://docs.rs/tokio/latest/tokio/attr.main.html
 [eager]: https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.enable_eager_driver_handoff
 [`tokio-dtrace`]: https://github.com/oxidecomputer/tokio-dtrace
+[LIFO slot optimization]: https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.disable_lifo_slot
+[omicron#8334]: https://github.com/oxidecomputer/omicron/issues/8334#issuecomment-2993159283
 [omicron#9619]: https://github.com/oxidecomputer/omicron/issues/9619
 [unstable features]: https://docs.rs/tokio/latest/tokio/#unstable-features
 [rt-mt]: https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.new_multi_thread
