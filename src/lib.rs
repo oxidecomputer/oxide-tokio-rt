@@ -17,7 +17,7 @@ use std::future::Future;
 
 pub use tokio::runtime::Builder;
 
-#[cfg(not(tokio_unstable))]
+#[cfg(all(not(doc), not(tokio_unstable)))]
 compile_error!(
     "`--cfg tokio_unstable` is required to build oxide-tokio-rt.\n\n\
      If your project already sets it in its .cargo/config.toml, make sure\n\
